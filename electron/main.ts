@@ -547,6 +547,16 @@ function registerLocalHandlers() {
     connected: remoteClient?.isConnected ?? false,
     info: remoteClient?.connectionInfo ?? null
   }))
+  ipcMain.handle('remote:test-connection', async (_event, host: string, port: number, token: string) => {
+    const testClient = new RemoteClient(getAllWindows)
+    try {
+      const ok = await testClient.connect(host, port, token)
+      testClient.disconnect()
+      return { ok }
+    } catch {
+      return { ok: false }
+    }
+  })
 
   // Profile handlers (always local)
   ipcMain.handle('profile:list', async () => profileManager.list())

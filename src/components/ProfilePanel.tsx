@@ -33,6 +33,8 @@ export function ProfilePanel({ onClose, onSwitch, onSwitchNewWindow }: ProfilePa
   const [editRemoteToken, setEditRemoteToken] = useState('')
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [confirmSwitch, setConfirmSwitch] = useState<string | null>(null)
+  const [testingId, setTestingId] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<Record<string, 'ok' | 'fail' | 'testing'>>({})
   const createInputRef = useRef<HTMLInputElement>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
 
@@ -138,6 +140,24 @@ export function ProfilePanel({ onClose, onSwitch, onSwitchNewWindow }: ProfilePa
     await window.electronAPI.profile.duplicate(profileId, `${source.name} (Copy)`)
     loadProfiles()
   }
+
+  const handleTestConnection = useCallback(async (profile: ProfileEntry) => {
+    if (!profile.remoteHost || !profile.remoteToken) return
+    setTestingId(profile.id)
+    setTestResult(prev => ({ ...prev, [profile.id]: 'testing' }))
+    try {
+      const result = await window.electronAPI.remote.testConnection(
+        profile.remoteHost,
+        profile.remotePort || 9876,
+        profile.remoteToken
+      )
+      setTestResult(prev => ({ ...prev, [profile.id]: result.ok ? 'ok' : 'fail' }))
+    } catch {
+      setTestResult(prev => ({ ...prev, [profile.id]: 'fail' }))
+    } finally {
+      setTestingId(null)
+    }
+  }, [])
 
   const handleSaveCurrent = async () => {
     await window.electronAPI.profile.save(activeProfileId)
@@ -310,6 +330,26 @@ export function ProfilePanel({ onClose, onSwitch, onSwitchNewWindow }: ProfilePa
                   </div>
                 )}
                 <div className="profile-item-actions" onClick={e => e.stopPropagation()}>
+                  {profile.type === 'remote' && (
+                    <button
+                      className={`profile-icon-btn ${testResult[profile.id] === 'ok' ? 'success' : testResult[profile.id] === 'fail' ? 'danger' : ''}`}
+                      title={testResult[profile.id] === 'ok' ? 'Connected' : testResult[profile.id] === 'fail' ? 'Connection failed' : 'Test connection'}
+                      onClick={() => handleTestConnection(profile)}
+                      disabled={testingId === profile.id}
+                    >
+                      {testingId === profile.id ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="spin">
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                          {testResult[profile.id] === 'ok' && <polyline points="22 4 12 14.01 9 11.01" />}
+                          {testResult[profile.id] === 'fail' && <><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></>}
+                        </svg>
+                      )}
+                    </button>
+                  )}
                   {profile.type === 'remote' && (
                     <button
                       className="profile-icon-btn"

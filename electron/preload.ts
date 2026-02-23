@@ -200,6 +200,8 @@ const electronAPI = {
       ipcRenderer.invoke('remote:disconnect') as Promise<boolean>,
     clientStatus: () =>
       ipcRenderer.invoke('remote:client-status') as Promise<{ connected: boolean; info: { host: string; port: number } | null }>,
+    testConnection: (host: string, port: number, token: string) =>
+      ipcRenderer.invoke('remote:test-connection', host, port, token) as Promise<{ ok: boolean }>,
   },
   snippet: {
     getAll: () => ipcRenderer.invoke('snippet:getAll'),

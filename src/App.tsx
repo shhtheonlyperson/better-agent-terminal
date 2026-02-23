@@ -135,12 +135,34 @@ export default function App() {
     })
 
     // Load saved workspaces and settings on startup
-    // If active profile is remote, fall back to Default local profile to avoid hanging
+    // If active profile is remote, try to connect; fall back to local on failure
     const initProfile = async () => {
       const result = await window.electronAPI.profile.list()
       const active = result.profiles.find(p => p.id === result.activeProfileId)
-      if (active?.type === 'remote') {
-        // Remote profile can't auto-connect — switch to first local profile
+      if (active?.type === 'remote' && active.remoteHost && active.remoteToken) {
+        // Try connecting to remote
+        const connectResult = await window.electronAPI.remote.connect(
+          active.remoteHost,
+          active.remotePort || 9876,
+          active.remoteToken
+        )
+        if ('error' in connectResult) {
+          // Connection failed — fall back to first local profile
+          const localProfile = result.profiles.find(p => p.type !== 'remote')
+          if (localProfile) {
+            await window.electronAPI.profile.load(localProfile.id)
+            setActiveProfileName(localProfile.name)
+          } else {
+            // No local profile available (new-window launch) — close window
+            window.close()
+            return
+          }
+        } else {
+          setActiveProfileName(active.name)
+          setIsRemoteConnected(true)
+        }
+      } else if (active?.type === 'remote') {
+        // Remote profile missing connection info — fall back
         const localProfile = result.profiles.find(p => p.type !== 'remote')
         if (localProfile) {
           await window.electronAPI.profile.load(localProfile.id)
@@ -240,7 +262,17 @@ export default function App() {
         profile.remoteToken
       )
       if ('error' in connectResult) {
-        alert(`Failed to connect to remote: ${connectResult.error}`)
+        alert(`Remote connection failed: ${connectResult.error}\nSwitching back to local profile.`)
+        // Fall back to first local profile
+        const listResult = await window.electronAPI.profile.list()
+        const localProfile = listResult.profiles.find(p => p.type !== 'remote')
+        if (localProfile) {
+          await window.electronAPI.profile.load(localProfile.id)
+          await workspaceStore.load()
+          setActiveProfileName(localProfile.name)
+        }
+        setIsRemoteConnected(false)
+        setShowProfiles(false)
         return
       }
       // Set as active profile (no local workspace load for remote)
