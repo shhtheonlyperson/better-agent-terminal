@@ -124,6 +124,10 @@ const electronAPI = {
       ipcRenderer.invoke('claude:reset-session', sessionId),
     getSupportedModels: (sessionId: string) =>
       ipcRenderer.invoke('claude:get-supported-models', sessionId),
+    getAccountInfo: (sessionId: string) =>
+      ipcRenderer.invoke('claude:get-account-info', sessionId) as Promise<{ email?: string; organization?: string; subscriptionType?: string } | null>,
+    getSupportedCommands: (sessionId: string) =>
+      ipcRenderer.invoke('claude:get-supported-commands', sessionId) as Promise<{ name: string; description: string; argumentHint: string }[]>,
     resolvePermission: (sessionId: string, toolUseId: string, result: { behavior: string; updatedInput?: Record<string, unknown>; message?: string }) =>
       ipcRenderer.invoke('claude:resolve-permission', sessionId, toolUseId, result),
     resolveAskUser: (sessionId: string, toolUseId: string, answers: Record<string, string>) =>
@@ -158,6 +162,11 @@ const electronAPI = {
       const handler = (_event: Electron.IpcRendererEvent, sessionId: string, data: unknown) => callback(sessionId, data)
       ipcRenderer.on('claude:ask-user', handler)
       return () => ipcRenderer.removeListener('claude:ask-user', handler)
+    },
+    onPromptSuggestion: (callback: (sessionId: string, suggestion: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, sessionId: string, suggestion: string) => callback(sessionId, suggestion)
+      ipcRenderer.on('claude:prompt-suggestion', handler)
+      return () => ipcRenderer.removeListener('claude:prompt-suggestion', handler)
     },
   },
   git: {

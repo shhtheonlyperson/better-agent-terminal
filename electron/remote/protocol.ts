@@ -17,7 +17,8 @@ export const PROXIED_CHANNELS = new Set([
   // Claude
   'claude:start-session', 'claude:send-message', 'claude:stop-session',
   'claude:set-permission-mode', 'claude:set-model', 'claude:set-effort', 'claude:set-1m-context', 'claude:reset-session',
-  'claude:get-supported-models', 'claude:resolve-permission', 'claude:resolve-ask-user',
+  'claude:get-supported-models', 'claude:get-account-info', 'claude:get-supported-commands',
+  'claude:resolve-permission', 'claude:resolve-ask-user',
   'claude:list-sessions', 'claude:resume-session', 'claude:rest-session',
   'claude:wake-session', 'claude:is-resting',
   'claude:archive-messages', 'claude:load-archived', 'claude:clear-archive',
@@ -41,7 +42,7 @@ export const PROXIED_EVENTS = new Set([
   'claude:message', 'claude:tool-use', 'claude:tool-result',
   'claude:stream', 'claude:result', 'claude:error',
   'claude:status', 'claude:permission-request', 'claude:ask-user',
-  'claude:modeChange', 'claude:history',
+  'claude:modeChange', 'claude:history', 'claude:prompt-suggestion',
   'workspace:detached', 'workspace:reattached',
   'system:resume',
 ])

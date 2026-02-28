@@ -4,16 +4,20 @@ import * as fsSync from 'fs'
 import * as fsPromises from 'fs/promises'
 import * as pathModule from 'path'
 import type { ClaudeMessage, ClaudeToolCall, ClaudeSessionState } from '../src/types/claude-agent'
-import type { Query, PermissionMode, CanUseTool } from '@anthropic-ai/claude-agent-sdk'
+import type { Query, PermissionMode, CanUseTool, SlashCommand } from '@anthropic-ai/claude-agent-sdk'
 import { broadcastHub } from './remote/broadcast-hub'
 
 // Lazy import the SDK (it's an ES module)
 let queryFn: typeof import('@anthropic-ai/claude-agent-sdk').query | null = null
+let listSessionsFn: typeof import('@anthropic-ai/claude-agent-sdk').listSessions | null = null
+let getSessionMessagesFn: typeof import('@anthropic-ai/claude-agent-sdk').getSessionMessages | null = null
 
 async function getQuery() {
   if (!queryFn) {
     const sdk = await import('@anthropic-ai/claude-agent-sdk')
     queryFn = sdk.query
+    listSessionsFn = sdk.listSessions
+    getSessionMessagesFn = sdk.getSessionMessages
   }
   return queryFn
 }
@@ -296,6 +300,7 @@ export class ClaudeAgentManager {
             toolName,
             input,
             suggestions: opts.suggestions,
+            decisionReason: opts.decisionReason,
           })
         })
       }
@@ -309,6 +314,7 @@ export class ClaudeAgentManager {
         permissionMode: currentMode,
         ...(currentMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
         includePartialMessages: true,
+        promptSuggestions: true,
         settingSources: ['user', 'project', 'local'],
         thinking: { type: 'adaptive' },
         effort: session.effort,
@@ -490,6 +496,13 @@ export class ClaudeAgentManager {
           })
         }
 
+        if (message.type === 'prompt_suggestion') {
+          const suggestion = (message as { suggestion?: string }).suggestion
+          if (suggestion) {
+            this.send('claude:prompt-suggestion', sessionId, suggestion)
+          }
+        }
+
         if (message.type === 'result') {
           const resultMsg = message as {
             subtype: string
@@ -588,11 +601,20 @@ export class ClaudeAgentManager {
     }
   }
 
-  stopSession(sessionId: string): boolean {
+  async stopSession(sessionId: string): Promise<boolean> {
     const session = this.sessions.get(sessionId)
     if (session) {
-      session.abortController.abort()
       session.messageQueue.length = 0
+      // Use graceful interrupt if the query is active, fallback to abort
+      if (session.queryInstance && session.state.isStreaming) {
+        try {
+          await session.queryInstance.interrupt()
+        } catch {
+          session.abortController.abort()
+        }
+      } else {
+        session.abortController.abort()
+      }
       session.state.isStreaming = false
       // Keep the session alive so the user can continue the conversation
       return true
@@ -669,6 +691,28 @@ export class ClaudeAgentManager {
     }
   }
 
+  async getAccountInfo(sessionId: string): Promise<{ email?: string; organization?: string; subscriptionType?: string } | null> {
+    const session = this.sessions.get(sessionId)
+    if (!session?.queryInstance) return null
+    try {
+      return await session.queryInstance.accountInfo()
+    } catch (e) {
+      console.warn('getAccountInfo failed:', e)
+      return null
+    }
+  }
+
+  async getSupportedCommands(sessionId: string): Promise<SlashCommand[]> {
+    const session = this.sessions.get(sessionId)
+    if (!session?.queryInstance) return []
+    try {
+      return await session.queryInstance.supportedCommands()
+    } catch (e) {
+      console.warn('getSupportedCommands failed:', e)
+      return []
+    }
+  }
+
   resolvePermission(sessionId: string, toolUseId: string, result: { behavior: string; updatedInput?: Record<string, unknown>; message?: string }): boolean {
     const session = this.sessions.get(sessionId)
     if (!session) return false
@@ -694,19 +738,32 @@ export class ClaudeAgentManager {
   }
 
   async listSessions(cwd: string): Promise<SessionSummary[]> {
+    // Use SDK's listSessions API instead of manual JSONL parsing
+    await getQuery() // ensure SDK is loaded
+    if (!listSessionsFn) return []
+    try {
+      const sessions = await listSessionsFn({ dir: cwd, limit: 50 })
+      return sessions.map(s => ({
+        sdkSessionId: s.sessionId,
+        timestamp: s.lastModified,
+        preview: s.customTitle || s.firstPrompt || s.summary || '(no preview)',
+        messageCount: 0, // SDK doesn't expose count directly
+      }))
+    } catch (e) {
+      console.warn('SDK listSessions failed, falling back to manual parse:', e)
+      return this.listSessionsFallback(cwd)
+    }
+  }
+
+  private async listSessionsFallback(cwd: string): Promise<SessionSummary[]> {
     const os = await import('os')
     const readline = await import('readline')
 
-    // Encode CWD to match SDK's project directory naming
-    // SDK encodes: colons become dashes, slashes become dashes
     const encoded = cwd.replace(/:/g, '-').replace(/[\\/]/g, '-')
     const projectDir = pathModule.join(os.homedir(), '.claude', 'projects', encoded)
 
     const results: SessionSummary[] = []
-
-    // Try the exact encoded path and common casing variants
     const candidates = [projectDir]
-    // On Windows, drive letter casing may differ
     if (process.platform === 'win32' && encoded.length > 0) {
       const lower = encoded[0].toLowerCase() + encoded.slice(1)
       const upper = encoded[0].toUpperCase() + encoded.slice(1)
@@ -730,7 +787,6 @@ export class ClaudeAgentManager {
           let preview = ''
           let messageCount = 0
 
-          // Read first 20 lines to find a user message for preview
           const stream = fsSync.createReadStream(filePath, { encoding: 'utf-8' })
           const rl = readline.createInterface({ input: stream, crlfDelay: Infinity })
           let lineCount = 0
@@ -767,7 +823,6 @@ export class ClaudeAgentManager {
       }
     }
 
-    // Deduplicate by sdkSessionId and sort by time descending
     const seen = new Set<string>()
     const deduped = results.filter(r => {
       if (seen.has(r.sdkSessionId)) return false

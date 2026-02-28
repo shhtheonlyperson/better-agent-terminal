@@ -306,6 +306,8 @@ function registerProxiedHandlers() {
   registerHandler('claude:set-1m-context', (sessionId: string, enable: boolean) => claudeManager?.set1MContext(sessionId, enable))
   registerHandler('claude:reset-session', (sessionId: string) => claudeManager?.resetSession(sessionId))
   registerHandler('claude:get-supported-models', (sessionId: string) => claudeManager?.getSupportedModels(sessionId))
+  registerHandler('claude:get-account-info', (sessionId: string) => claudeManager?.getAccountInfo(sessionId))
+  registerHandler('claude:get-supported-commands', (sessionId: string) => claudeManager?.getSupportedCommands(sessionId))
   registerHandler('claude:resolve-permission', (sessionId: string, toolUseId: string, result: { behavior: string; updatedInput?: Record<string, unknown>; message?: string }) => claudeManager?.resolvePermission(sessionId, toolUseId, result))
   registerHandler('claude:resolve-ask-user', (sessionId: string, toolUseId: string, answers: Record<string, string>) => claudeManager?.resolveAskUser(sessionId, toolUseId, answers))
   registerHandler('claude:list-sessions', (cwd: string) => claudeManager?.listSessions(cwd))

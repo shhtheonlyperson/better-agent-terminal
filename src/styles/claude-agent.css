@@ -1665,3 +1665,89 @@
   color: var(--text-secondary);
   font-size: 13px;
 }
+
+/* ============================================
+   Prompt Suggestion Chip
+   ============================================ */
+.claude-prompt-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.12s;
+  overflow: hidden;
+}
+.claude-prompt-suggestion:hover {
+  background: var(--bg-hover);
+}
+.claude-prompt-suggestion-label {
+  font-size: 11px;
+  color: var(--claude-accent);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.claude-prompt-suggestion-text {
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================
+   Slash Command Autocomplete Menu
+   ============================================ */
+.claude-slash-menu {
+  border-bottom: 1px solid var(--border-color);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.claude-slash-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.claude-slash-item:hover,
+.claude-slash-item.selected {
+  background: var(--bg-hover);
+}
+.claude-slash-name {
+  font-size: 13px;
+  color: var(--claude-accent);
+  font-weight: 600;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+.claude-slash-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================
+   Permission Decision Reason
+   ============================================ */
+.claude-permission-reason {
+  font-size: 12px;
+  color: var(--claude-accent);
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: rgba(217, 119, 6, 0.08);
+  border-radius: 4px;
+  border-left: 2px solid var(--claude-accent);
+}
+
+/* ============================================
+   Account Info Badge
+   ============================================ */
+.claude-account-info {
+  font-size: 11px;
+  opacity: 0.7;
+}

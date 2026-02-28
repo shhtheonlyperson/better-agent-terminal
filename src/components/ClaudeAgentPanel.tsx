@@ -29,6 +29,13 @@ interface PendingPermission {
   toolName: string
   input: Record<string, unknown>
   suggestions?: unknown[]
+  decisionReason?: string
+}
+
+interface SlashCommandInfo {
+  name: string
+  description: string
+  argumentHint: string
 }
 
 interface AskUserQuestion {
@@ -98,6 +105,12 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId, savedS
   const [showModelList, setShowModelList] = useState(false)
   const [contentModal, setContentModal] = useState<{ title: string; content: string } | null>(null)
   const [showPromptHistory, setShowPromptHistory] = useState(false)
+  const [promptSuggestion, setPromptSuggestion] = useState<string | null>(null)
+  const [accountInfo, setAccountInfo] = useState<{ email?: string; organization?: string; subscriptionType?: string } | null>(null)
+  const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([])
+  const [showSlashMenu, setShowSlashMenu] = useState(false)
+  const [slashFilter, setSlashFilter] = useState('')
+  const [slashMenuIndex, setSlashMenuIndex] = useState(0)
   // Ctrl+P file picker
   const [showFilePicker, setShowFilePicker] = useState(false)
   const [filePickerQuery, setFilePickerQuery] = useState('')
@@ -446,6 +459,11 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId, savedS
           setPermissionMode(mode)
         }
       }),
+
+      api.onPromptSuggestion((sid: string, suggestion: string) => {
+        if (sid !== sessionId) return
+        setPromptSuggestion(suggestion)
+      }),
     ]
 
     return () => {
@@ -470,13 +488,19 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId, savedS
     }
   }, [sessionId, cwd, savedSdkSessionId])
 
-  // Fetch supported models once session metadata arrives
+  // Fetch supported models, account info, and slash commands once session metadata arrives
   useEffect(() => {
     if (sessionMeta?.sdkSessionId && availableModels.length === 0) {
       window.electronAPI.claude.getSupportedModels(sessionId).then((models: ModelInfo[]) => {
         if (models && models.length > 0) {
           setAvailableModels(models)
         }
+      }).catch(() => {})
+      window.electronAPI.claude.getAccountInfo(sessionId).then(info => {
+        if (info) setAccountInfo(info)
+      }).catch(() => {})
+      window.electronAPI.claude.getSupportedCommands(sessionId).then((cmds: SlashCommandInfo[]) => {
+        if (cmds && cmds.length > 0) setSlashCommands(cmds)
       }).catch(() => {})
     }
   }, [sessionId, sessionMeta?.sdkSessionId, availableModels.length])
@@ -593,6 +617,8 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId, savedS
     const imageDataUrls = attachedImages.map(i => i.dataUrl)
     clearInput()
     setAttachedImages([])
+    setPromptSuggestion(null)
+    setShowSlashMenu(false)
     if (!isStreaming) {
       setIsStreaming(true)
       setStreamingText('')
@@ -661,7 +687,63 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId, savedS
     await window.electronAPI.claude.setPermissionMode(sessionId, nextMode)
   }, [sessionId, permissionMode])
 
+  // Filtered slash commands based on current input
+  const filteredSlashCommands = useMemo(() => {
+    if (!showSlashMenu) return []
+    const q = slashFilter.toLowerCase()
+    // Include our custom commands plus SDK commands
+    const builtIn: SlashCommandInfo[] = [
+      { name: 'new', description: 'Reset session (clear conversation)', argumentHint: '' },
+      { name: 'resume', description: 'Resume a previous session', argumentHint: '' },
+      { name: 'model', description: 'Select model', argumentHint: '' },
+    ]
+    const all = [...builtIn, ...slashCommands]
+    return q ? all.filter(c => c.name.toLowerCase().includes(q)) : all
+  }, [showSlashMenu, slashFilter, slashCommands])
+
+  const handleInputChange = useCallback((e: React.FormEvent<HTMLTextAreaElement>) => {
+    const val = (e.target as HTMLTextAreaElement).value
+    inputValueRef.current = val
+    // Show slash command menu when typing / at the start
+    if (val.startsWith('/') && !val.includes(' ')) {
+      setShowSlashMenu(true)
+      setSlashFilter(val.slice(1))
+      setSlashMenuIndex(0)
+    } else {
+      setShowSlashMenu(false)
+    }
+  }, [])
+
+  const handleSlashSelect = useCallback((cmd: SlashCommandInfo) => {
+    setInputValue('/' + cmd.name)
+    setShowSlashMenu(false)
+    textareaRef.current?.focus()
+  }, [setInputValue])
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Slash command menu navigation
+    if (showSlashMenu && filteredSlashCommands.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSlashMenuIndex(prev => Math.min(prev + 1, filteredSlashCommands.length - 1))
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSlashMenuIndex(prev => Math.max(prev - 1, 0))
+        return
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+        e.preventDefault()
+        handleSlashSelect(filteredSlashCommands[slashMenuIndex])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowSlashMenu(false)
+        return
+      }
+    }
     if (e.key === 'Tab' && e.shiftKey) {
       e.preventDefault()
       handlePermissionModeCycle()
@@ -697,7 +779,7 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId, savedS
       e.preventDefault()
       handleSend()
     }
-  }, [handleSend, handlePermissionModeCycle, setInputValue])
+  }, [handleSend, handlePermissionModeCycle, setInputValue, showSlashMenu, filteredSlashCommands, slashMenuIndex, handleSlashSelect])
 
   const handleModelCycle = useCallback(async () => {
     if (availableModels.length === 0) return
@@ -1739,6 +1821,11 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId, savedS
           <div className="claude-permission-command">
             {toolInputSummary(pendingPermission.toolName, pendingPermission.input)}
           </div>
+          {pendingPermission.decisionReason && (
+            <div className="claude-permission-reason">
+              {pendingPermission.decisionReason}
+            </div>
+          )}
           {pendingPermission.input.description && (
             <div className="claude-permission-desc">
               {String(pendingPermission.input.description)}
@@ -1956,11 +2043,38 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId, savedS
       {/* Input area — hidden when permission card, ask-user card, or resume/model list is visible */}
       {!pendingPermission && !pendingQuestion && !showResumeList && !showModelList && (
       <div className={`claude-input-area${isDragOver ? ' drag-over' : ''}`}>
+        {/* Prompt suggestion chip */}
+        {promptSuggestion && !isStreaming && (
+          <div className="claude-prompt-suggestion" onClick={() => {
+            setInputValue(promptSuggestion)
+            setPromptSuggestion(null)
+            textareaRef.current?.focus()
+          }}>
+            <span className="claude-prompt-suggestion-label">Suggested:</span>
+            <span className="claude-prompt-suggestion-text">{promptSuggestion}</span>
+          </div>
+        )}
+        {/* Slash command autocomplete menu */}
+        {showSlashMenu && filteredSlashCommands.length > 0 && (
+          <div className="claude-slash-menu">
+            {filteredSlashCommands.slice(0, 10).map((cmd, i) => (
+              <div
+                key={cmd.name}
+                className={`claude-slash-item${i === slashMenuIndex ? ' selected' : ''}`}
+                onClick={() => handleSlashSelect(cmd)}
+                onMouseEnter={() => setSlashMenuIndex(i)}
+              >
+                <span className="claude-slash-name">/{cmd.name}</span>
+                <span className="claude-slash-desc">{cmd.description}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           className="claude-input"
           defaultValue=""
-          onInput={e => { inputValueRef.current = (e.target as HTMLTextAreaElement).value }}
+          onInput={handleInputChange}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={isStreaming ? 'Press Escape to stop...' : 'Type a message... (Enter to send, Shift+Tab to switch mode)'}
@@ -2029,6 +2143,11 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId, savedS
             >
               1M
             </span>
+            {accountInfo?.organization && (
+              <span className="claude-status-btn claude-account-info" title={`${accountInfo.email || ''} (${accountInfo.subscriptionType || 'unknown'})`}>
+                {accountInfo.organization}
+              </span>
+            )}
           </div>
 
           <div className="claude-input-actions">
