@@ -361,7 +361,11 @@ export class ClaudeAgentManager {
 
       if (resumeId) {
         queryOptions.resume = resumeId
-        queryOptions.continue = true
+        // Only auto-continue when there's no new user prompt
+        // When the user sends a message, we want to resume context but process their new input
+        if (!prompt || prompt.trim() === '' || prompt.trim() === ' ') {
+          queryOptions.continue = true
+        }
       }
 
       // Build prompt: if images are attached, construct a multi-content SDKUserMessage

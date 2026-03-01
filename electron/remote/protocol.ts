@@ -17,7 +17,7 @@ export const PROXIED_CHANNELS = new Set([
   // Claude
   'claude:start-session', 'claude:send-message', 'claude:stop-session',
   'claude:set-permission-mode', 'claude:set-model', 'claude:set-effort', 'claude:set-1m-context', 'claude:reset-session',
-  'claude:get-supported-models', 'claude:get-account-info', 'claude:get-supported-commands',
+  'claude:get-supported-models', 'claude:get-account-info', 'claude:get-supported-commands', 'claude:get-session-meta',
   'claude:resolve-permission', 'claude:resolve-ask-user',
   'claude:list-sessions', 'claude:resume-session', 'claude:rest-session',
   'claude:wake-session', 'claude:is-resting',

@@ -192,13 +192,13 @@ function cleanupAllProcesses() {
   ptyManager = null
 }
 
+// Handle --profile launch argument: expose to frontend without changing global state
+const profileArg = process.argv.find(a => a.startsWith('--profile='))
+const launchProfileId = profileArg ? profileArg.split('=')[1] || null : null
+
 app.whenReady().then(async () => {
   buildMenu()
   createWindow()
-
-  // Handle --profile launch argument: expose to frontend without changing global state
-  const profileArg = process.argv.find(a => a.startsWith('--profile='))
-  const launchProfileId = profileArg ? profileArg.split('=')[1] || null : null
 
   // Listen for system resume from sleep/hibernate
   powerMonitor.on('resume', () => {
