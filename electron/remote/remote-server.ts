@@ -67,7 +67,7 @@ export class RemoteServer {
     this.token = token || this.loadPersistedToken() || randomBytes(16).toString('hex')
     this.persistToken(this.token)
 
-    this.wss = new WebSocketServer({ port })
+    this.wss = new WebSocketServer({ host: '0.0.0.0', port })
 
     this.wss.on('connection', (ws) => {
       let authenticated = false

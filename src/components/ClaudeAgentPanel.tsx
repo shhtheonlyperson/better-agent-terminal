@@ -374,12 +374,28 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId }: Read
         }))
       }),
 
-      api.onResult((sid: string, _result: unknown) => {
+      api.onResult((sid: string, resultData: unknown) => {
         if (sid !== sessionId) return
         setIsStreaming(false)
         setIsInterrupted(false)
         setStreamingText('')
         setStreamingThinking('')
+        // Show result text for slash commands like /context that don't produce assistant messages
+        const rd = resultData as { result?: string; subtype?: string } | undefined
+        if (rd?.result && rd.subtype === 'success') {
+          setMessages(prev => {
+            // Skip if the last message is already an assistant message (normal conversation)
+            const last = prev[prev.length - 1]
+            if (last && 'role' in last && last.role === 'assistant') return prev
+            return [...prev, {
+              id: `result-${Date.now()}`,
+              sessionId,
+              role: 'assistant' as const,
+              content: rd.result!,
+              timestamp: Date.now(),
+            }]
+          })
+        }
       }),
 
       api.onError((sid: string, error: string) => {
