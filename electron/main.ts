@@ -1,6 +1,35 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu, powerMonitor, clipboard, nativeImage } from 'electron'
 import path from 'path'
 import * as fs from 'fs/promises'
+import { execFileSync } from 'child_process'
+
+// Fix PATH for GUI-launched apps on macOS.
+// When launched via .dmg / Applications, macOS gives a minimal PATH that
+// doesn't include Homebrew (/opt/homebrew/bin), NVM, etc.
+// We source the user's login shell to get the real PATH.
+if (process.platform === 'darwin') {
+  try {
+    const shell = process.env.SHELL || '/bin/zsh'
+    // fish stores PATH as a list; use string join to get colon-separated output
+    const isFish = shell.endsWith('/fish') || shell === 'fish'
+    const cmd = isFish ? 'string join : $PATH' : 'echo $PATH'
+    const rawPath = execFileSync(shell, ['-l', '-c', cmd], {
+      timeout: 3000,
+      encoding: 'utf8',
+    }).trim()
+    if (rawPath) {
+      process.env.PATH = rawPath
+    }
+  } catch {
+    // Fallback: prepend the most common node locations
+    const extraPaths = [
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      `${process.env.HOME}/.volta/bin`,
+    ].join(':')
+    process.env.PATH = `${extraPaths}:${process.env.PATH || ''}`
+  }
+}
 import { PtyManager } from './pty-manager'
 import { ClaudeAgentManager } from './claude-agent-manager'
 import { checkForUpdates, UpdateCheckResult } from './update-checker'
