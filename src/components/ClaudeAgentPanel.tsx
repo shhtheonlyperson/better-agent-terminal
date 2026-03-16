@@ -568,13 +568,13 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId }: Read
     window.electronAPI.git.getBranch(cwd).then(branch => setGitBranch(branch)).catch(() => setGitBranch(null))
   }, [cwd])
 
-  // Poll Claude usage (5h / 7d rate limits) every 5 minutes
+  // Poll Claude usage (5h / 7d rate limits) every 60 seconds
   useEffect(() => {
     const fetchUsage = () => {
       window.electronAPI.claude.getUsage().then(u => { if (u) setClaudeUsage(u) }).catch(() => {})
     }
     fetchUsage()
-    const timer = setInterval(fetchUsage, 5 * 60 * 1000)
+    const timer = setInterval(fetchUsage, 60 * 1000)
     return () => clearInterval(timer)
   }, [])
 
@@ -2376,14 +2376,24 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId }: Read
           {sessionMeta && sessionMeta.totalCost > 0 && (
             <span className="claude-statusline-item">${sessionMeta.totalCost.toFixed(4)}</span>
           )}
-          {claudeUsage && claudeUsage.fiveHour != null && (
-            <span
-              className={`claude-statusline-item${claudeUsage.fiveHour > 80 ? ' claude-usage-high' : claudeUsage.fiveHour > 50 ? ' claude-usage-mid' : ''}`}
-              title={`5h resets: ${claudeUsage.fiveHourReset ? new Date(claudeUsage.fiveHourReset).toLocaleTimeString() : '?'}\n7d resets: ${claudeUsage.sevenDayReset ? new Date(claudeUsage.sevenDayReset).toLocaleString() : '?'}`}
-            >
-              5h:{Math.round(claudeUsage.fiveHour)}% 7d:{Math.round(claudeUsage.sevenDay ?? 0)}%
-            </span>
-          )}
+          {claudeUsage && claudeUsage.fiveHour != null && (() => {
+            const fmtRemaining = (d: Date) => {
+              const ms = d.getTime() - Date.now()
+              if (ms <= 0) return '0m'
+              const h = Math.floor(ms / 3600000)
+              const m = Math.floor((ms % 3600000) / 60000)
+              return h > 24 ? `${Math.floor(h / 24)}d${h % 24}h` : h > 0 ? `${h}h${m}m` : `${m}m`
+            }
+            const fiveReset = claudeUsage.fiveHourReset ? fmtRemaining(new Date(claudeUsage.fiveHourReset)) : null
+            const sevenReset = claudeUsage.sevenDayReset ? fmtRemaining(new Date(claudeUsage.sevenDayReset)) : null
+            return (
+              <span
+                className={`claude-statusline-item${claudeUsage.fiveHour > 80 ? ' claude-usage-high' : claudeUsage.fiveHour > 50 ? ' claude-usage-mid' : ''}`}
+              >
+                5h:{Math.round(claudeUsage.fiveHour)}%{fiveReset ? ` ↻${fiveReset}` : ''} · 7d:{Math.round(claudeUsage.sevenDay ?? 0)}%{sevenReset ? ` ↻${sevenReset}` : ''}
+              </span>
+            )
+          })()}
         </div>
         <div className="claude-statusline">
           <span
