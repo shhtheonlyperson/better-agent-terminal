@@ -34,7 +34,7 @@ class WorkspaceStore {
       }).catch(() => {})
     }
     fetch()
-    this._usageTimer = setInterval(fetch, 60 * 1000)
+    this._usageTimer = setInterval(fetch, 5 * 60 * 1000)
   }
 
   getState(): AppState {
