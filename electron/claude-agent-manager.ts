@@ -533,8 +533,10 @@ export class ClaudeAgentManager {
                 const resultContent = typeof resultBlock.content === 'string'
                   ? resultBlock.content
                   : JSON.stringify(resultBlock.content)
+                // If this tool has an active subagent task, keep it as 'running' — task_notification will complete it
+                const hasActiveTask = Array.from(session.activeTasks.values()).some(t => t.toolUseId === resultBlock.tool_use_id)
                 this.updateToolCall(sessionId, resultBlock.tool_use_id, {
-                  status: resultBlock.is_error ? 'error' : 'completed',
+                  status: hasActiveTask ? 'running' : (resultBlock.is_error ? 'error' : 'completed'),
                   result: resultContent,
                 })
               }
@@ -552,8 +554,10 @@ export class ClaudeAgentManager {
                 const resultStr = typeof resultBlock.content === 'string'
                   ? resultBlock.content
                   : JSON.stringify(resultBlock.content)
+                // If this tool has an active subagent task, keep it as 'running' — task_notification will complete it
+                const hasActiveTask = Array.from(session.activeTasks.values()).some(t => t.toolUseId === resultBlock.tool_use_id)
                 this.updateToolCall(sessionId, resultBlock.tool_use_id, {
-                  status: resultBlock.is_error ? 'error' : 'completed',
+                  status: hasActiveTask ? 'running' : (resultBlock.is_error ? 'error' : 'completed'),
                   result: resultStr?.slice(0, 2000), // Truncate long results
                 })
               }
@@ -681,6 +685,7 @@ export class ClaudeAgentManager {
               if (task && task.toolUseId) {
                 const statusLabel = agentMsg.status === 'completed' ? 'completed' : agentMsg.status === 'failed' ? 'failed' : 'stopped'
                 this.updateToolCall(sessionId, task.toolUseId, {
+                  status: agentMsg.status === 'failed' ? 'error' : 'completed',
                   description: `[${statusLabel}] ${agentMsg.summary || task.description}`,
                 } as Partial<ClaudeToolCall>)
               }
