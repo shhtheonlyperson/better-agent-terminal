@@ -599,6 +599,18 @@ function registerLocalHandlers() {
     return result.canceled ? [] : result.filePaths
   })
 
+  ipcMain.handle('dialog:confirm', async (_event, message: string, title?: string) => {
+    const result = await dialog.showMessageBox(mainWindow!, {
+      type: 'warning',
+      buttons: ['OK', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      title: title || 'Confirm',
+      message,
+    })
+    return result.response === 0
+  })
+
   ipcMain.handle('shell:open-external', async (_event, url: string) => { await shell.openExternal(url) })
   ipcMain.handle('shell:open-path', async (_event, folderPath: string) => { await shell.openPath(folderPath) })
 

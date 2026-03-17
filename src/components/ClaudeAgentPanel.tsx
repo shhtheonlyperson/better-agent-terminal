@@ -862,7 +862,8 @@ export function ClaudeAgentPanel({ sessionId, cwd, isActive, workspaceId }: Read
     const idx = permissionModes.indexOf(permissionMode as typeof permissionModes[number])
     const nextMode = permissionModes[(idx + 1) % permissionModes.length]
     if ((nextMode === 'bypassPermissions' || nextMode === 'planBypass') && !settingsStore.getSettings().allowBypassPermissions) {
-      if (!window.confirm('Warning: This mode allows tool calls without confirmation. Continue?')) {
+      const confirmed = await window.electronAPI.dialog.confirm('Warning: This mode allows tool calls without confirmation. Continue?')
+      if (!confirmed) {
         return
       }
     }
