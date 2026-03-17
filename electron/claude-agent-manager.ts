@@ -754,31 +754,36 @@ export class ClaudeAgentManager {
   }
 
   async setModel(sessionId: string, model: string): Promise<boolean> {
+    const session = this.sessions.get(sessionId)
+    if (!session) return false
+
     if (!model || model === 'default') {
       // "default" is not a valid SDK model ID — just clear the override
-      const session = this.sessions.get(sessionId)
-      if (session) {
-        session.model = undefined
-        session.metadata.model = undefined
-      }
+      session.model = undefined
+      session.metadata.model = undefined
       return true
     }
-    const session = this.sessions.get(sessionId)
-    if (!session?.queryInstance) {
-      console.warn(`[setModel] no queryInstance for session ${sessionId.slice(0, 8)}`)
-      return false
+
+    // Always persist the model on the session so the next runQuery picks it up
+    session.model = model
+    session.metadata.model = model
+
+    if (!session.queryInstance) {
+      // No active query yet — model will be used when the next query starts
+      console.log(`[setModel] stored model ${model} for session ${sessionId.slice(0, 8)} (no active query)`)
+      return true
     }
+
     try {
       console.log(`[setModel] setting model to ${model} for session ${sessionId.slice(0, 8)}`)
       await session.queryInstance.setModel(model)
-      session.model = model
-      session.metadata.model = model
       this.send('claude:status', sessionId, { ...session.metadata })
       console.log(`[setModel] success: ${model}`)
       return true
     } catch (e) {
-      console.warn('[setModel] failed:', e)
-      return false
+      // Model is already stored on the session — it will take effect on the next query
+      console.warn(`[setModel] SDK call failed (model stored for next query):`, e)
+      return true
     }
   }
 
