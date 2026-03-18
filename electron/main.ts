@@ -304,16 +304,27 @@ app.whenReady().then(async () => {
   }, 2000)
 })
 
-app.on('before-quit', () => {
+// Cleanup runs once: before-quit covers cmd+Q / File→Quit paths,
+// window-all-closed covers the user closing the last window.
+// Guard with a flag to avoid running twice.
+let _cleanupDone = false
+function runCleanupOnce() {
+  if (_cleanupDone) return
+  _cleanupDone = true
   cleanupAllProcesses()
+}
+
+app.on('before-quit', () => {
+  runCleanupOnce()
 })
 
 app.on('window-all-closed', () => {
-  cleanupAllProcesses()
+  runCleanupOnce()
   if (process.platform !== 'darwin') {
     app.quit()
-    // Force exit after a short delay in case child processes keep the event loop alive
-    setTimeout(() => process.exit(0), 1000)
+    // Force exit — child processes (PTY shells, Claude CLI) may keep the event loop alive.
+    // PTY kill() already called taskkill /T above; this is a final safety net.
+    setTimeout(() => process.exit(0), 2000)
   }
 })
 

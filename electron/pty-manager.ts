@@ -238,10 +238,19 @@ export class PtyManager {
   kill(id: string): boolean {
     const instance = this.instances.get(id)
     if (instance) {
+      const pid: number | undefined = instance.process.pid
       if (instance.usePty) {
         instance.process.kill()
       } else {
         (instance.process as ChildProcess).kill()
+      }
+      // On Windows, kill() only terminates the direct shell process.
+      // Use taskkill /T to forcefully terminate the entire process tree.
+      if (process.platform === 'win32' && pid) {
+        try {
+          const { execFileSync } = require('child_process')
+          execFileSync('taskkill', ['/F', '/T', '/PID', String(pid)], { stdio: 'ignore', timeout: 3000 })
+        } catch { /* process may already be gone */ }
       }
       this.instances.delete(id)
       return true
