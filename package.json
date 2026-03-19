@@ -93,8 +93,12 @@
       },
       "icon": "assets/icon.png",
       "category": "public.app-category.developer-tools",
+      "identity": "Developer ID Application: TonyQ CO., LTD. (8JVDJGLLYR)",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true,
       "extendInfo": {
         "NSDocumentsFolderUsageDescription": "BetterAgentTerminal needs access to your Documents folder to open terminals and manage files in your projects.",
         "NSDesktopFolderUsageDescription": "BetterAgentTerminal needs access to your Desktop folder to open terminals and manage files in your projects.",
